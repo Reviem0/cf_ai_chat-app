@@ -1,0 +1,35 @@
+name = "ai-chat-app"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ── Workers AI binding ───────────────────────────────────────────
+[ai]
+binding = "AI"
+
+# ── Durable Objects binding (memory / state) ─────────────────────
+[[durable_objects.bindings]]
+name = "CHAT_SESSION"
+class_name = "ChatSession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatSession"]
+
+# ── D1 Database binding ──────────────────────────────────────────
+[[d1_databases]]
+binding = "DB"
+database_name = "chat-db"
+database_id = "2f23d6a3-2270-4041-b0b6-b083ba5e9e40"
+preview_database_id = "2f23d6a3-2270-4041-b0b6-b083ba5e9e40"
+
+# ── Vectorize binding (vector DB for long-term chat memory) ───
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "chat-memory-index"
+
+# ── Workflows binding ─────────────────────────────────────────────
+[[workflows]]
+name = "link-scraper-workflow"
+binding = "SCRAPER_WORKFLOW"
+class_name = "LinkScraperWorkflow"
