@@ -9,8 +9,8 @@ A full-stack AI chat application running entirely on Cloudflare's edge, featurin
   - **Cloudflare D1**: Stores chat sessions and short-term conversation history.
   - **Cloudflare Vectorize**: Vector database for long-term semantic recall, global facts, and uploaded documents.
   - **Durable Objects**: Coordinates AI calls, RAG retrieval, and token budgeting per session.
-- **Workflows**: Cloudflare Workflows are used for background tasks like scraping, cleaning, and embedding URLs shared in the chat.
-- **RAG & Uploads**: Upload `.txt`, `.docx`, and `.zip` files. Their content is chunked, vectorized, and automatically retrieved when relevant to the conversation.
+- **Workflows & Link Scraping**: Any URLs shared in the chat are dynamically extracted and processed by Cloudflare Workflows. Web pages are automatically fetched, cleaned, chunked, and stored as vector embeddings in the background.
+- **RAG & File Uploads**: Upload `.txt`, `.docx`, and `.zip` files. Their content, along with scraped web links, is chunked, vectorized, and automatically retrieved when relevant to the conversation.
 - **Token-Aware Window Management**: Dynamically trims conversation history to fit within the Llama 3 context limits, using the `llama3-tokenizer-js` package.
 
 ## Architecture
@@ -33,8 +33,8 @@ Browser ──► Worker (index.ts)
 ## Setup & Running Instructions
 
 ### Prerequisites
-- [Node.js 18+](https://nodejs.org)
-- [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier works)
+- [Node.js](https://nodejs.org)
+- [Cloudflare account](https://dash.cloudflare.com/sign-up)
 
 ### 1. Install dependencies
 
@@ -52,7 +52,7 @@ npx wrangler login
 
 You'll need properly configured infrastructure to support the memory, database, and background workflows.
 
-**A. D1 Database**
+#### **A. D1 Database**
 Create a new database and update your `wrangler.toml` with the generated `database_id` and `preview_database_id`.
 ```bash
 npx wrangler d1 create chat-db
@@ -62,7 +62,7 @@ Apply the database schema:
 npx wrangler d1 execute chat-db --remote --file=./schema.sql
 ```
 
-**B. Vectorize Index**
+#### **B. Vectorize Index**
 Create the Vectorize index to store message and document embeddings:
 ```bash
 npx wrangler vectorize create chat-memory-index --dimensions=768 --metric=cosine
@@ -70,15 +70,13 @@ npx wrangler vectorize create chat-memory-index --dimensions=768 --metric=cosine
 
 ### 4. Run Locally
 
-Because the application relies on Cloudflare Vectorize and D1 bindings, it is highly recommended to run the local development server in remote mode so it can communicate directly with your Cloudflare infrastructure:
-
 ```bash
-npm run dev -- --remote
+npm run dev
+# OR: npx wrangler dev
 # OR: npx wrangler dev --remote
 ```
 
 Open http://localhost:8787 in your browser to try it out. 
-*(Note: Calls to Workers AI and Vector DB are proxied to Cloudflare during remote local dev.)*
 
 ### 5. Deploy to Production
 

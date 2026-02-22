@@ -2943,25 +2943,43 @@ function getHTML() {
       padding: 16px;
     }
 
-    /* \u2500\u2500 Settings modal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-    #settings-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-secondary);
-      padding: 7px 16px;
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      font-size: 12px;
-      font-family: inherit;
-      font-weight: 500;
-      transition: all 0.25s ease;
-      letter-spacing: 0.01em;
+    /* \u2500\u2500 Right Panel (Settings) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+    .right-panel {
+      position: fixed;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 340px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      z-index: 50;
+      transform: translateX(calc(100% - 24px));
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+      display: flex;
     }
-    #settings-btn:hover {
-      border-color: #8b5cf6;
-      color: #8b5cf6;
-      background: rgba(139, 92, 246, 0.08);
-      box-shadow: 0 0 20px rgba(139, 92, 246, 0.1);
+    .right-panel:hover {
+      transform: translateX(0);
+      box-shadow: -8px 0 40px rgba(0, 0, 0, 0.5);
+    }
+    .right-panel-handle {
+      width: 24px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-tertiary);
+      border-right: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .right-panel-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 20px;
+      overflow-y: auto;
+      background: var(--bg-secondary);
     }
 
     .settings-field { margin-bottom: 18px; }
@@ -3088,7 +3106,6 @@ function getHTML() {
         </div>
         <div class="header-right">
           <span class="badge">Llama 3.3 70B</span>
-          <button id="settings-btn">\u2699\uFE0F Settings</button>
           <button id="facts-btn">\u{1F4CC} Facts</button>
           <button id="clear-btn">Clear history</button>
         </div>
@@ -3186,36 +3203,35 @@ function getHTML() {
   </div>
 
 
-  <!-- Settings modal -->
-  <div class="modal-overlay" id="settings-modal">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>\u2699\uFE0F Chat Settings</h3>
-        <button class="modal-close" id="settings-modal-close">\u2715</button>
+  <!-- Right Panel (Settings) -->
+  <aside class="right-panel" id="right-panel">
+    <div class="right-panel-handle">
+      <div style="writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: 2px;">\u2699\uFE0F SETTINGS</div>
+    </div>
+    <div class="right-panel-content">
+      <h3 style="margin-bottom: 24px; font-weight: 600; font-size: 15px;">\u2699\uFE0F Chat Settings</h3>
+      <div class="settings-field">
+        <label class="settings-label">
+          Context Template
+          <span class="settings-label-sub">Extra background context appended to the system prompt for this chat. Tell the AI what you're working on.</span>
+        </label>
+        <textarea class="settings-textarea" id="context-template-input" placeholder="e.g. I'm building a Python Flask web app." rows="4"></textarea>
       </div>
-      <div class="modal-body">
-        <div class="settings-field">
-          <label class="settings-label">
-            Context Template
-            <span class="settings-label-sub">Extra background context appended to the system prompt for this chat. Tell the AI what you're working on.</span>
-          </label>
-          <textarea class="settings-textarea" id="context-template-input" placeholder="e.g. I'm building a Python Flask web app. The database is PostgreSQL. The project uses Docker for deployment." rows="4"></textarea>
-        </div>
-        <div class="settings-field">
-          <label class="settings-label">
-            Instruct Mode
-            <span class="settings-label-sub">Behavioral instructions that change how the AI responds in this chat.</span>
-          </label>
-          <textarea class="settings-textarea" id="instruct-mode-input" placeholder="e.g. Be a senior code reviewer: be concise, critical, and focus on bugs and performance issues. Use bullet points." rows="4"></textarea>
-        </div>
-        <div id="settings-status"></div>
+      <div class="settings-field">
+        <label class="settings-label">
+          Instruct Mode
+          <span class="settings-label-sub">Behavioral instructions that change how the AI responds in this chat.</span>
+        </label>
+        <textarea class="settings-textarea" id="instruct-mode-input" placeholder="e.g. Be a senior code reviewer: be concise, critical, and focus on bugs and performance issues. Use bullet points." rows="4"></textarea>
       </div>
-      <div class="settings-footer">
-        <button class="settings-reset-btn" id="settings-reset-btn">\u{1F504} Reset to defaults</button>
-        <button class="settings-save-btn" id="settings-save-btn">Save</button>
+      <div id="settings-status"></div>
+      
+      <div style="margin-top: auto; padding-top: 24px; display: flex; flex-direction: column; gap: 10px;">
+        <button class="settings-save-btn" id="settings-save-btn" style="width: 100%;">Save Settings</button>
+        <button class="settings-reset-btn" id="settings-reset-btn" style="width: 100%;">\u{1F504} Reset defaults</button>
       </div>
     </div>
-  </div>
+  </aside>
 
   <script>
     // \u2500\u2500 Chat Manager \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -3887,44 +3903,38 @@ function getHTML() {
       }
     });
 
-    // \u2500\u2500 Settings modal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-    const settingsModal = document.getElementById('settings-modal');
-    const settingsBtn = document.getElementById('settings-btn');
+    // \u2500\u2500 Right Panel (Settings) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    const rightPanel = document.getElementById('right-panel');
     const contextTemplateInput = document.getElementById('context-template-input');
     const instructModeInput = document.getElementById('instruct-mode-input');
     const settingsSaveBtn = document.getElementById('settings-save-btn');
     const settingsResetBtn = document.getElementById('settings-reset-btn');
     const settingsStatus = document.getElementById('settings-status');
+    
+    let lastLoadedSession = null;
 
     async function loadSettings() {
+      if (lastLoadedSession === sessionId) return;
       contextTemplateInput.value = '';
       instructModeInput.value = '';
       settingsStatus.textContent = '';
       settingsStatus.className = 'settings-status';
 
       try {
-        const res = await fetch(\`/api/settings?sessionId=\${encodeURIComponent(sessionId)}\`);
+        const res = await fetch('/api/settings?sessionId=' + encodeURIComponent(sessionId));
         if (!res.ok) throw new Error('Failed to load settings');
         const data = await res.json();
         contextTemplateInput.value = data.contextTemplate || '';
         instructModeInput.value = data.instructMode || '';
+        lastLoadedSession = sessionId;
       } catch (err) {
         settingsStatus.className = 'settings-status error';
         settingsStatus.textContent = '\u2715 Failed to load settings.';
       }
     }
 
-    settingsBtn.addEventListener('click', () => {
-      settingsModal.classList.add('open');
+    rightPanel.addEventListener('mouseenter', () => {
       loadSettings();
-    });
-
-    document.getElementById('settings-modal-close').addEventListener('click', () => {
-      settingsModal.classList.remove('open');
-    });
-
-    settingsModal.addEventListener('click', (e) => {
-      if (e.target === settingsModal) settingsModal.classList.remove('open');
     });
 
     settingsSaveBtn.addEventListener('click', async () => {
@@ -3945,11 +3955,6 @@ function getHTML() {
         if (!res.ok) throw new Error('Failed to save');
         settingsStatus.className = 'settings-status success';
         settingsStatus.textContent = '\u2713 Settings saved for this chat!';
-        setTimeout(() => {
-          if (settingsModal.classList.contains('open')) {
-            settingsModal.classList.remove('open');
-          }
-        }, 1200);
       } catch (err) {
         settingsStatus.className = 'settings-status error';
         settingsStatus.textContent = '\u2715 Failed to save settings.';
@@ -4035,7 +4040,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env2, _ctx, middlewareCtx
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-tUs1lX/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-8ilBwl/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -4067,7 +4072,7 @@ function __facade_invoke__(request, env2, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-tUs1lX/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-8ilBwl/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

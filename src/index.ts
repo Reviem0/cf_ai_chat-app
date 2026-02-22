@@ -1078,25 +1078,43 @@ function getHTML(): string {
       padding: 16px;
     }
 
-    /* ── Settings modal ───────────────────────────────────────── */
-    #settings-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-secondary);
-      padding: 7px 16px;
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      font-size: 12px;
-      font-family: inherit;
-      font-weight: 500;
-      transition: all 0.25s ease;
-      letter-spacing: 0.01em;
+    /* ── Right Panel (Settings) ───────────────────────────────── */
+    .right-panel {
+      position: fixed;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 340px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      z-index: 50;
+      transform: translateX(calc(100% - 24px));
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+      display: flex;
     }
-    #settings-btn:hover {
-      border-color: #8b5cf6;
-      color: #8b5cf6;
-      background: rgba(139, 92, 246, 0.08);
-      box-shadow: 0 0 20px rgba(139, 92, 246, 0.1);
+    .right-panel:hover {
+      transform: translateX(0);
+      box-shadow: -8px 0 40px rgba(0, 0, 0, 0.5);
+    }
+    .right-panel-handle {
+      width: 24px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-tertiary);
+      border-right: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .right-panel-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 20px;
+      overflow-y: auto;
+      background: var(--bg-secondary);
     }
 
     .settings-field { margin-bottom: 18px; }
@@ -1223,7 +1241,6 @@ function getHTML(): string {
         </div>
         <div class="header-right">
           <span class="badge">Llama 3.3 70B</span>
-          <button id="settings-btn">⚙️ Settings</button>
           <button id="facts-btn">📌 Facts</button>
           <button id="clear-btn">Clear history</button>
         </div>
@@ -1321,36 +1338,35 @@ function getHTML(): string {
   </div>
 
 
-  <!-- Settings modal -->
-  <div class="modal-overlay" id="settings-modal">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>⚙️ Chat Settings</h3>
-        <button class="modal-close" id="settings-modal-close">✕</button>
+  <!-- Right Panel (Settings) -->
+  <aside class="right-panel" id="right-panel">
+    <div class="right-panel-handle">
+      <div style="writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: 2px;">⚙️ SETTINGS</div>
+    </div>
+    <div class="right-panel-content">
+      <h3 style="margin-bottom: 24px; font-weight: 600; font-size: 15px;">⚙️ Chat Settings</h3>
+      <div class="settings-field">
+        <label class="settings-label">
+          Context Template
+          <span class="settings-label-sub">Extra background context appended to the system prompt for this chat. Tell the AI what you're working on.</span>
+        </label>
+        <textarea class="settings-textarea" id="context-template-input" placeholder="e.g. I'm building a Python Flask web app." rows="4"></textarea>
       </div>
-      <div class="modal-body">
-        <div class="settings-field">
-          <label class="settings-label">
-            Context Template
-            <span class="settings-label-sub">Extra background context appended to the system prompt for this chat. Tell the AI what you're working on.</span>
-          </label>
-          <textarea class="settings-textarea" id="context-template-input" placeholder="e.g. I'm building a Python Flask web app. The database is PostgreSQL. The project uses Docker for deployment." rows="4"></textarea>
-        </div>
-        <div class="settings-field">
-          <label class="settings-label">
-            Instruct Mode
-            <span class="settings-label-sub">Behavioral instructions that change how the AI responds in this chat.</span>
-          </label>
-          <textarea class="settings-textarea" id="instruct-mode-input" placeholder="e.g. Be a senior code reviewer: be concise, critical, and focus on bugs and performance issues. Use bullet points." rows="4"></textarea>
-        </div>
-        <div id="settings-status"></div>
+      <div class="settings-field">
+        <label class="settings-label">
+          Instruct Mode
+          <span class="settings-label-sub">Behavioral instructions that change how the AI responds in this chat.</span>
+        </label>
+        <textarea class="settings-textarea" id="instruct-mode-input" placeholder="e.g. Be a senior code reviewer: be concise, critical, and focus on bugs and performance issues. Use bullet points." rows="4"></textarea>
       </div>
-      <div class="settings-footer">
-        <button class="settings-reset-btn" id="settings-reset-btn">🔄 Reset to defaults</button>
-        <button class="settings-save-btn" id="settings-save-btn">Save</button>
+      <div id="settings-status"></div>
+      
+      <div style="margin-top: auto; padding-top: 24px; display: flex; flex-direction: column; gap: 10px;">
+        <button class="settings-save-btn" id="settings-save-btn" style="width: 100%;">Save Settings</button>
+        <button class="settings-reset-btn" id="settings-reset-btn" style="width: 100%;">🔄 Reset defaults</button>
       </div>
     </div>
-  </div>
+  </aside>
 
   <script>
     // ── Chat Manager ─────────────────────────────────────────────
@@ -2022,44 +2038,38 @@ function getHTML(): string {
       }
     });
 
-    // ── Settings modal ─────────────────────────────────────────
-    const settingsModal = document.getElementById('settings-modal');
-    const settingsBtn = document.getElementById('settings-btn');
+    // ── Right Panel (Settings) ─────────────────────────────────
+    const rightPanel = document.getElementById('right-panel');
     const contextTemplateInput = document.getElementById('context-template-input');
     const instructModeInput = document.getElementById('instruct-mode-input');
     const settingsSaveBtn = document.getElementById('settings-save-btn');
     const settingsResetBtn = document.getElementById('settings-reset-btn');
     const settingsStatus = document.getElementById('settings-status');
+    
+    let lastLoadedSession = null;
 
     async function loadSettings() {
+      if (lastLoadedSession === sessionId) return;
       contextTemplateInput.value = '';
       instructModeInput.value = '';
       settingsStatus.textContent = '';
       settingsStatus.className = 'settings-status';
 
       try {
-        const res = await fetch(\`/api/settings?sessionId=\${encodeURIComponent(sessionId)}\`);
+        const res = await fetch('/api/settings?sessionId=' + encodeURIComponent(sessionId));
         if (!res.ok) throw new Error('Failed to load settings');
         const data = await res.json();
         contextTemplateInput.value = data.contextTemplate || '';
         instructModeInput.value = data.instructMode || '';
+        lastLoadedSession = sessionId;
       } catch (err) {
         settingsStatus.className = 'settings-status error';
         settingsStatus.textContent = '✕ Failed to load settings.';
       }
     }
 
-    settingsBtn.addEventListener('click', () => {
-      settingsModal.classList.add('open');
+    rightPanel.addEventListener('mouseenter', () => {
       loadSettings();
-    });
-
-    document.getElementById('settings-modal-close').addEventListener('click', () => {
-      settingsModal.classList.remove('open');
-    });
-
-    settingsModal.addEventListener('click', (e) => {
-      if (e.target === settingsModal) settingsModal.classList.remove('open');
     });
 
     settingsSaveBtn.addEventListener('click', async () => {
@@ -2080,11 +2090,6 @@ function getHTML(): string {
         if (!res.ok) throw new Error('Failed to save');
         settingsStatus.className = 'settings-status success';
         settingsStatus.textContent = '✓ Settings saved for this chat!';
-        setTimeout(() => {
-          if (settingsModal.classList.contains('open')) {
-            settingsModal.classList.remove('open');
-          }
-        }, 1200);
       } catch (err) {
         settingsStatus.className = 'settings-status error';
         settingsStatus.textContent = '✕ Failed to save settings.';
