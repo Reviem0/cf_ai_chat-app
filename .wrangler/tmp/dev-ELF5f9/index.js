@@ -3113,7 +3113,6 @@ function getHTML() {
         <form id="chat-form">
           <label for="file-upload" class="file-upload-btn" title="Upload Document (.txt, .docx, .pdf, .zip)">\u{1F4CE}</label>
           <input type="file" id="file-upload" accept=".txt,.docx,.pdf,.zip" style="display: none;">
-          <button type="button" class="file-upload-btn" id="link-upload-btn" title="Add links to memory">\u{1F517}</button>
           <textarea id="input" placeholder="Message the AI\u2026" rows="1" autofocus></textarea>
           <button type="button" id="send-btn">\u27A4</button>
         </form>
@@ -3186,28 +3185,6 @@ function getHTML() {
     </div>
   </div>
 
-  <!-- Link Scraper modal -->
-  <div class="modal-overlay" id="link-modal">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>\u{1F517} Scrape Links</h3>
-        <button class="modal-close" id="link-modal-close">\u2715</button>
-      </div>
-      <div class="modal-body">
-        <div class="settings-field">
-          <label class="settings-label">
-            Paste URLs (one per line)
-            <span class="settings-label-sub">The AI will read these pages in the background and add them to its memory.</span>
-          </label>
-          <textarea class="settings-textarea" id="link-input" placeholder="https://example.com&#10;https://cloudflare.com" rows="4"></textarea>
-        </div>
-      </div>
-      <div class="settings-footer">
-        <button class="settings-reset-btn" id="link-cancel-btn">Cancel</button>
-        <button class="settings-save-btn" id="link-submit-btn">Scrape</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Settings modal -->
   <div class="modal-overlay" id="settings-modal">
@@ -3443,8 +3420,46 @@ function getHTML() {
     }
     updateMemoryBar();
 
+    function normalizeLink(link) {
+      const markdownMatch = link.match(/\\[.*?\\]\\((.*?)\\)/);
+      if (markdownMatch) return markdownMatch[1];
+      if (link.startsWith('www.')) return \`https://\${link}\`;
+      if (/^https?:\\/\\//.test(link)) return link;
+      return \`https://\${link}\`;
+    }
+
+    function extractLinks(text) {
+      const patterns = [
+        /https?:\\/\\/[^\\s<>"{}|\\\\^\`\\[\\]]+/gi,
+        /\\bwww\\.[a-z0-9-]+\\.[a-z]{2,}(?:\\/[^\\s<>"{}|\\\\^\`\\[\\]]*)?/gi,
+        /\\[([^\\]]+)\\]\\(((?:https?:\\/\\/|www\\.)[^\\s)]+)\\)/gi,
+        /\\b(?!www\\.)[a-z0-9-]+\\.[a-z]{2,4}(?:\\/[^\\s<>"{}|\\\\^\`\\[\\]]*)?(?=\\s|$)/gi,
+      ];
+      const links = new Set();
+      patterns.forEach(pattern => {
+        const matches = text.match(pattern) || [];
+        matches.forEach(link => links.add(normalizeLink(link)));
+      });
+      return [...links];
+    }
+
+    function renderMessageWithLinks(text) {
+      text = text.replace(
+        /\\[([^\\]]+)\\]\\(((?:https?:\\/\\/|www\\.)[^\\s)]+)\\)/g,
+        (_, label, url) => \`<a href="\${normalizeLink(url)}" target="_blank" style="color: var(--accent); text-decoration: underline;">\${label}</a>\`
+      );
+
+      text = text.replace(
+        /(?<!["'=\\(])(?:https?:\\/\\/|www\\.)[^\\s<>"{}|\\\\^\`\\[\\]]+/gi,
+        url => \`<a href="\${normalizeLink(url)}" target="_blank" style="color: var(--accent); text-decoration: underline;">\${url}</a>\`
+      );
+
+      return text;
+    }
+
     // \u2500\u2500 Markdown-like rendering \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     function renderMarkdown(text) {
+      text = renderMessageWithLinks(text);
       return text
         .replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, '<pre><code>$1</code></pre>')
         .replace(/\`([^\`]+)\`/g, '<code>$1</code>')
@@ -3497,6 +3512,12 @@ function getHTML() {
     // \u2500\u2500 Send message \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     async function sendMessage(message) {
       if (!message.trim()) return;
+
+      const extracted = extractLinks(message);
+      const validUrls = extracted.filter(url => {
+        try { new URL(url); return true; } catch { return false; }
+      });
+
       input.value = '';
       input.style.height = 'auto';
       sendBtn.disabled = true;
@@ -3505,6 +3526,23 @@ function getHTML() {
       if (messageCount === 0) autoTitle(message);
 
       addMessage('user', message);
+
+      if (validUrls.length > 0) {
+        fetch('/api/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: validUrls, sessionId })
+        }).then(res => {
+          if (res.ok) {
+            addMessage('assistant', \`\u2705 Background scraping started for **\${validUrls.length} link(s)**. They will be added to my memory shortly!\`);
+          } else {
+            addMessage('assistant', \`\u274C **Error scraping links:** Failed to trigger scraper\`);
+          }
+        }).catch(err => {
+          addMessage('assistant', \`\u274C **Error scraping links:** \${err.message}\`);
+        });
+      }
+
       addTyping();
 
       try {
@@ -3697,70 +3735,6 @@ function getHTML() {
       sendMessage(input.value.trim());
     });
 
-    // \u2500\u2500 Link Scraper \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-    const linkModal = document.getElementById('link-modal');
-    const linkUploadBtn = document.getElementById('link-upload-btn');
-    const linkSubmitBtn = document.getElementById('link-submit-btn');
-    const linkCancelBtn = document.getElementById('link-cancel-btn');
-    const linkCloseBtn = document.getElementById('link-modal-close');
-    const linkInput = document.getElementById('link-input');
-
-    linkUploadBtn.addEventListener('click', () => {
-      linkInput.value = '';
-      linkModal.classList.add('open');
-      linkInput.focus();
-    });
-
-    function closeLinkModal() {
-      linkModal.classList.remove('open');
-    }
-
-    linkCancelBtn.addEventListener('click', closeLinkModal);
-    linkCloseBtn.addEventListener('click', closeLinkModal);
-    linkModal.addEventListener('click', (e) => {
-      if (e.target === linkModal) closeLinkModal();
-    });
-
-    linkSubmitBtn.addEventListener('click', async () => {
-      const rawUrls = linkInput.value.split('\\n').map(l => l.trim()).filter(l => l);
-      if (rawUrls.length === 0) return;
-      
-      // Basic URL validation
-      const urls = rawUrls.filter(url => {
-        try { new URL(url); return true; } catch { return false; }
-      });
-
-      if (urls.length === 0) {
-        alert('Please enter valid URLs starting with http:// or https://');
-        return;
-      }
-
-      closeLinkModal();
-      
-      addMessage('user', \`\u{1F517} Processing \${urls.length} link(s) in the background...\`);
-      addTyping();
-
-      try {
-        const res = await fetch('/api/scrape', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls, sessionId })
-        });
-
-        document.getElementById('typing')?.remove();
-
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Failed to trigger scraper');
-        }
-
-        addMessage('assistant', \`\u2705 Background scraping started for **\${urls.length} link(s)**. They will be added to my memory shortly!\`);
-      } catch (err) {
-        console.error(err);
-        document.getElementById('typing')?.remove();
-        addMessage('assistant', \`\u274C **Error scraping links:** \${err.message}\`);
-      }
-    });
 
     // \u2500\u2500 Suggestion chips \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     function bindChips() {
@@ -4061,7 +4035,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env2, _ctx, middlewareCtx
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-RmY7WJ/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-tUs1lX/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -4093,7 +4067,7 @@ function __facade_invoke__(request, env2, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-RmY7WJ/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-tUs1lX/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

@@ -27,6 +27,7 @@ preview_database_id = "2f23d6a3-2270-4041-b0b6-b083ba5e9e40"
 [[vectorize]]
 binding = "VECTORIZE"
 index_name = "chat-memory-index"
+remote = true
 
 # ── Workflows binding ─────────────────────────────────────────────
 [[workflows]]
