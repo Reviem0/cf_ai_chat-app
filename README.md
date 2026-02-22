@@ -2,55 +2,39 @@
 
 A full-stack AI chat application running entirely on Cloudflare's edge, featuring LLM-powered conversations, persistent memory, token-aware context management, and RAG-based long-term recall via a vector database.
 
-## Assignment Requirements
+## Key Features
 
-| Requirement | Implementation |
-|---|---|
-| **LLM** | Llama 3.3 70B Instruct via Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) |
-| **Workflow / Coordination** | Durable Objects route each user session and coordinate AI calls, token budgeting, and RAG retrieval |
-| **User Input (chat)** | Chat UI served directly from the Worker with multiple chat sessions, sidebar navigation, suggestion chips |
-| **Memory / State** | Durable Object persistent storage for conversation history + Vectorize vector database for long-term semantic recall and global facts |
+- **LLM**: Llama 3.3 70B Instruct via Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`).
+- **Memory & Storage**: 
+  - **Cloudflare D1**: Stores chat sessions and short-term conversation history.
+  - **Cloudflare Vectorize**: Vector database for long-term semantic recall, global facts, and uploaded documents.
+  - **Durable Objects**: Coordinates AI calls, RAG retrieval, and token budgeting per session.
+- **Workflows**: Cloudflare Workflows are used for background tasks like scraping, cleaning, and embedding URLs shared in the chat.
+- **RAG & Uploads**: Upload `.txt`, `.docx`, and `.zip` files. Their content is chunked, vectorized, and automatically retrieved when relevant to the conversation.
+- **Token-Aware Window Management**: Dynamically trims conversation history to fit within the Llama 3 context limits, using the `llama3-tokenizer-js` package.
 
 ## Architecture
 
-```
+```text
 Browser ──► Worker (index.ts)
                │
-               ├─► Serves HTML chat UI  (GET /)
+               ├─► Serves HTML chat UI (GET /)
                │
-               └─► Routes by session ID to Durable Object  (POST /api/chat, /api/clear, /api/facts)
+               └─► Routes by session ID to Durable Object (POST /api/chat)
                         │
-                        ├─► Loads message history from DO Storage
-                        ├─► Stores message embedding in Vectorize (vectorStore.ts)
-                        ├─► Queries Vectorize for relevant past messages (RAG)
-                        ├─► Queries Vectorize for relevant global facts
-                        ├─► Token-counts all context and trims to fit budget (tokenizer.ts)
-                        ├─► Calls Workers AI (Llama 3.3)
-                        └─► Persists updated history to DO Storage
+                        ├─► Fetches/Stores message history in D1 Database
+                        ├─► Embeds messages/files & stores in Vectorize
+                        ├─► Queries Vectorize for semantic context (RAG)
+                        ├─► Triggers Workflows for background tasks (e.g. link scraping)
+                        ├─► Calls Workers AI (Llama 3.3 70B)
+                        └─► Returns generated response
 ```
 
-## Key Features
-
-### 🧠 Token-Aware Context Window Management
-Instead of a hard message count limit, the app uses the **Llama 3 tokenizer** (`llama3-tokenizer-js`) to count tokens per message and dynamically trims the conversation history to fit the model's context window (24,000 tokens). This ensures maximum context utilisation without exceeding limits.
-
-**How it works:** The system walks backwards from the newest message, summing token counts, and includes as many messages as fit within the remaining budget after accounting for the system prompt, recalled memories, and response tokens.
-
-### 🔍 Retrieval-Augmented Generation (RAG)
-Every user and assistant message is embedded using **Workers AI** (`bge-base-en-v1.5`) and stored in a **Cloudflare Vectorize** index. When a new message arrives, the system queries the vector database for semantically similar past messages and injects them as "recalled memory" into the prompt — allowing the AI to reference earlier parts of long conversations that may have been trimmed from the context window.
-
-### 📌 Global Facts
-Users can store facts that persist across **all** chat sessions. Facts are stored in the same Vectorize index with a special global session ID and are automatically retrieved and injected into every conversation based on semantic relevance.
-
-### 💬 Multiple Chat Sessions
-The sidebar allows creating, switching between, renaming, and deleting independent chat sessions. Each session has its own Durable Object instance, conversation history, and vector embeddings. Chat titles are auto-generated from the first user message.
-
-## Quick Start
+## Setup & Running Instructions
 
 ### Prerequisites
 - [Node.js 18+](https://nodejs.org)
 - [Cloudflare account](https://dash.cloudflare.com/sign-up) (free tier works)
-- Wrangler CLI (included in devDependencies)
 
 ### 1. Install dependencies
 
@@ -64,74 +48,82 @@ npm install
 npx wrangler login
 ```
 
-### 3. Create the Vectorize index
+### 3. Setup Cloudflare Resources
 
-Before deploying, create the Vectorize index that stores message embeddings:
+You'll need properly configured infrastructure to support the memory, database, and background workflows.
 
+**A. D1 Database**
+Create a new database and update your `wrangler.toml` with the generated `database_id` and `preview_database_id`.
+```bash
+npx wrangler d1 create chat-db
+```
+Apply the database schema:
+```bash
+npx wrangler d1 execute chat-db --remote --file=./schema.sql
+```
+
+**B. Vectorize Index**
+Create the Vectorize index to store message and document embeddings:
 ```bash
 npx wrangler vectorize create chat-memory-index --dimensions=768 --metric=cosine
 ```
 
-### 4. Run locally
+### 4. Run Locally
+
+Because the application relies on Cloudflare Vectorize and D1 bindings, it is highly recommended to run the local development server in remote mode so it can communicate directly with your Cloudflare infrastructure:
 
 ```bash
-npm run dev
+npm run dev -- --remote
+# OR: npx wrangler dev --remote
 ```
 
-Open http://localhost:8787 — Workers AI calls are proxied to Cloudflare during local dev automatically.
+Open http://localhost:8787 in your browser to try it out. 
+*(Note: Calls to Workers AI and Vector DB are proxied to Cloudflare during remote local dev.)*
 
-### 5. Deploy to production
+### 5. Deploy to Production
+
+Deploy the application to your Cloudflare account, including the Workflows and Worker:
 
 ```bash
 npm run deploy
 ```
 
-Wrangler will output your live URL, e.g. `https://ai-chat-app.<your-subdomain>.workers.dev`
+Wrangler will output your live URL (e.g., `https://ai-chat-app.<your-subdomain>.workers.dev`).
 
 ## File Structure
 
-```
+```text
 ai-chat-app/
 ├── src/
-│   ├── index.ts          # Worker entry point + HTML/CSS/JS chat UI
-│   ├── chatSession.ts    # Durable Object (memory, AI coordination, RAG)
-│   ├── tokenizer.ts      # Llama 3 token counting + context trimming
-│   ├── vectorStore.ts    # Vectorize embedding, storage, retrieval, and facts
-│   └── env.d.ts          # TypeScript env bindings
-├── wrangler.toml         # Cloudflare config (AI, DO, Vectorize bindings)
+│   ├── index.ts           # Worker entry point + HTML/CSS/JS chat UI
+│   ├── chatSession.ts     # Durable Object (memory, AI coordination, RAG)
+│   ├── tokenizer.ts       # Llama 3 token counting + context trimming
+│   ├── vectorStore.ts     # Vectorize embedding, storage, retrieval, and facts
+│   ├── scraperWorkflow.ts # Cloudflare Workflow for extracting web content
+│   └── env.d.ts           # TypeScript environment bindings
+├── schema.sql             # Schema for D1 Database
+├── wrangler.toml          # Cloudflare config (AI, D1, DO, Vectorize, Workflows)
 ├── package.json
 └── tsconfig.json
 ```
 
-## How Memory Works
+## How Memory & Context works
 
-### Short-Term Memory (Durable Objects)
-Each browser session is routed to a **Durable Object instance** keyed by session ID. The DO stores the full `messages[]` array in persistent KV storage and loads it on each request.
+### Short-Term Memory (D1 & Durable Objects)
+Messages and chat session metadata are stored in a Cloudflare D1 SQL database. A Durable Object coordinates interactions for each specific chat session to prevent conflict or double-processing. 
 
 ### Long-Term Memory (Vectorize RAG)
-Every message is also embedded as a 768-dimensional vector and stored in **Cloudflare Vectorize**. When a new message arrives:
+Every message, uploaded file, and global fact is stored as an embedding (768-dimensional vector) within Cloudflare Vectorize.
 
-1. The message is embedded and stored in the vector index
-2. A similarity query retrieves the top 5 most relevant past messages from the same session
-3. A separate query retrieves the top 3 most relevant global facts
-4. These are injected as "recalled memory" and "known facts" into the system prompt
-5. The tokenizer trims the recent history to fit the remaining context budget
-6. The full prompt (system + facts + recalled memory + recent history) is sent to Llama 3.3
+When a user submits a prompt:
+1. The message is embedded.
+2. The system queries Vectorize for the top 5 most relevant past messages/documents and top 3 global facts.
+3. These are injected into the system prompt as "recalled memory".
+4. The token count is measured. The recent history is dynamically trimmed to fit the context budget.
+5. The combined, token-budgeted prompt is sent to Workers AI `llama-3.3-70b-instruct-fp8-fast`.
 
-### Context Budget Breakdown
+### Customization
 
-| Component | Token Budget |
-|---|---|
-| System prompt | ~100 tokens |
-| Global facts | up to 1,000 tokens |
-| Recalled memory (RAG) | up to 2,000 tokens |
-| Response | up to 1,024 tokens |
-| Recent history | remaining (~20,000 tokens) |
-
-## Customisation
-
-- **Change the model**: Edit the model string in `chatSession.ts`. Options: `@cf/meta/llama-3.1-8b-instruct`, `@cf/google/gemma-3-12b-it`
-- **Adjust context limits**: Change `MAX_CONTEXT_TOKENS`, `MAX_RESPONSE_TOKENS`, `MAX_RECALLED_TOKENS`, or `MAX_FACTS_TOKENS` in `chatSession.ts`
-- **Change embedding model**: Edit `EMBEDDING_MODEL` in `vectorStore.ts`
-- **Adjust RAG retrieval**: Change `RAG_TOP_K` and `FACTS_TOP_K` in `chatSession.ts`
-- **Add a system persona**: Edit the `systemPrompt` in `chatSession.ts`
+- **Change the model**: Edit the model string in `chatSession.ts`. Options include `@cf/meta/llama-3.1-8b-instruct`.
+- **Adjust limits**: Update `MAX_CONTEXT_TOKENS`, `MAX_RESPONSE_TOKENS`, `MAX_RECALLED_TOKENS` in `chatSession.ts`.
+- **Change the embedding model**: Edit `EMBEDDING_MODEL` in `vectorStore.ts`.
